@@ -1,4 +1,6 @@
+import { useContext } from 'react'
 import type { ReactNode } from 'react'
+import { ClassNamesContext } from './classNames'
 import { DataTableRow } from './DataTableRow'
 import { useTableSelector } from './hooks'
 import { getLeadLayout, getLeafColumns } from './layout'
@@ -30,6 +32,8 @@ export function DataTableBody({
       ...getLeadLayout(table, selectionPlacement),
     }))
 
+  const slots = useContext(ClassNamesContext)
+
   let content: ReactNode
   if (isLoading) content = <StateRow>{loadingState}</StateRow>
   else if (!rows.length) content = <StateRow>{emptyState}</StateRow>
@@ -46,7 +50,7 @@ export function DataTableBody({
     ))
 
   return (
-    <div role="rowgroup" data-slot="body">
+    <div role="rowgroup" data-slot="body" className={slots.body}>
       {content}
     </div>
   )

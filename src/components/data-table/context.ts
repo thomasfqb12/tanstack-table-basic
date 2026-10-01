@@ -44,5 +44,12 @@ export function useDataTableContext(): DataTableContextValue {
   return ctx
 }
 
+/**
+ * The consumer's table object (from `useTable`). It's a new object whenever
+ * the table's options or data change, so selectors that read options or data
+ * re-run then (see `useVersioned` in hooks.ts).
+ */
+export const TableVersionContext = createContext<object | null>(null)
+
 export const detailId = (tableId: string, rowId: string) =>
   `${tableId}-detail-${rowId}`

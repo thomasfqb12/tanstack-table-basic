@@ -10,7 +10,7 @@ const isAppOnlyPlugin = (plugin: PluginOption) =>
 
 const config: StorybookConfig = {
   stories: ['../src/**/*.mdx', '../src/**/*.stories.@(ts|tsx)'],
-  addons: ['@storybook/addon-docs'],
+  addons: ['@storybook/addon-docs', '@storybook/addon-vitest'],
   framework: '@storybook/react-vite',
   // Reuses vite.config.ts (Tailwind, React Compiler, path aliases).
   viteFinal: (viteConfig) => ({

@@ -8,7 +8,7 @@
  * Read them inside selectors (re-run on every state change) and call methods
  * from handlers, never cache handlers built during render.
  */
-import { createContext, useContext } from 'react'
+import { useContext } from 'react'
 import { readAtom, useAtomSelector, useTableSelector } from './hooks'
 import { DataTableContext, detailId } from './context'
 import { Checkbox, ChevronIcon, IconButton } from './primitives'
@@ -18,15 +18,8 @@ import {
   setRowsSelected,
   syncCascadeParents,
 } from './selection'
-import type { RowModel } from '@tanstack/react-table'
 import type { ChangeEvent } from 'react'
 import type { AnyRow, AnyTable } from './types'
-
-/**
- * Changes when the table data changes. Lets controls that derive from the
- * full row set (select all) refresh without subscribing to every render.
- */
-export const DataVersionContext = createContext<RowModel<any, any> | null>(null)
 
 /**
  * Row checkbox. How it treats children follows TanStack's
@@ -79,8 +72,8 @@ export function SelectAllCheckbox({
   table: AnyTable
   scope?: SelectAllScope
 }) {
-  useContext(DataVersionContext)
-  // Whole-store subscription: the row set also depends on filters/pagination.
+  // Whole-store subscription: the row set also depends on filters/pagination
+  // (and on data/options, through the table version).
   const { enabled, checked, indeterminate } = useTableSelector(table, () => {
     const rowSelection = readAtom(table, 'rowSelection') ?? {}
     const rows = getSelectAllRows(table, scope)

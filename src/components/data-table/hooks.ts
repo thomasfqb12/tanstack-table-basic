@@ -1,4 +1,6 @@
+import { useContext } from 'react'
 import { shallow, useSelector } from '@tanstack/react-store'
+import { TableVersionContext } from './context'
 import type { AnyTable } from './types'
 
 type FeatureKey =
@@ -35,8 +37,27 @@ const EMPTY_SOURCE: Source<undefined> = {
 }
 
 /**
+ * Selectors also read table *options* (`row.getCanSelect()`,
+ * `column.getCanSort()`, ...) and data, which change without a store update
+ * and without the row/column object changing. Under the React Compiler the
+ * selector would then be cached and return stale values. Tying it to the
+ * table version (the consumer's table object, a new one whenever its options
+ * or data change) makes it re-run then.
+ */
+function useVersioned<TArg, TSelected>(
+  selector: (arg: TArg) => TSelected,
+): (arg: TArg) => TSelected {
+  const version = useContext(TableVersionContext)
+  // Passed as an (ignored) argument: a real use, so the compiler keeps
+  // `version` as a dependency (a bare `void version` is optimized away).
+  return (arg) =>
+    (selector as (arg: TArg, version: unknown) => TSelected)(arg, version)
+}
+
+/**
  * Subscribes to a single table state atom (e.g. `table.atoms.rowSelection`)
  * and re-renders only when the selected value changes (shallow compare).
+ * Also re-runs when the table's options or data change.
  *
  * Safe to call when the feature is not registered: the atom is then
  * `undefined` and the selector receives `undefined` once.
@@ -47,7 +68,7 @@ export function useAtomSelector<TValue, TSelected>(
 ): TSelected {
   return useSelector<TValue | undefined, TSelected>(
     atom ?? EMPTY_SOURCE,
-    selector,
+    useVersioned(selector),
     { compare: shallow },
   )
 }
@@ -61,5 +82,5 @@ export function useTableSelector<TSelected>(
   table: AnyTable,
   selector: () => TSelected,
 ): TSelected {
-  return useSelector(table.store, selector, { compare: shallow })
+  return useSelector(table.store, useVersioned(selector), { compare: shallow })
 }

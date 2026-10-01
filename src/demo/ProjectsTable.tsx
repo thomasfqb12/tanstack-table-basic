@@ -76,6 +76,8 @@ export function ProjectsTable() {
   const [data, setData] = useState(projects)
   const [lastClicked, setLastClicked] = useState<string>()
   const [cascadeSelection, setCascadeSelection] = useState(true)
+  const [striped, setStriped] = useState(false)
+  const [columnLines, setColumnLines] = useState(false)
 
   const table = useTable(
     {
@@ -137,6 +139,22 @@ export function ProjectsTable() {
           />
           Select children with parent
         </label>
+        <label className="flex items-center gap-1">
+          <input
+            type="checkbox"
+            checked={striped}
+            onChange={(event) => setStriped(event.target.checked)}
+          />
+          Striped
+        </label>
+        <label className="flex items-center gap-1">
+          <input
+            type="checkbox"
+            checked={columnLines}
+            onChange={(event) => setColumnLines(event.target.checked)}
+          />
+          Column lines
+        </label>
         {lastClicked && (
           <span className="opacity-60">Clicked: {lastClicked}</span>
         )}
@@ -145,7 +163,9 @@ export function ProjectsTable() {
       <DataTable
         table={table}
         aria-label="Projects"
-        className="max-h-[70vh] rounded border border-gray-200"
+        className="max-h-[70vh] rounded"
+        borders={{ outer: true, columns: columnLines }}
+        striped={striped}
         isLoading={isLoading}
         renderDetail={renderDetail}
         onRowClick={(row) => setLastClicked(row.original.name)}

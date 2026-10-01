@@ -31,6 +31,10 @@ export interface DataTableColumnMeta {
    * depth. Defaults to the first visible column; `true` picks this one.
    */
   lead?: boolean
+  /** Classes for this column's cells, merged over the defaults with `cn`. */
+  className?: string
+  /** Classes for this column's header cell, merged over the defaults. */
+  headerClassName?: string
 }
 
 declare module '@tanstack/react-table' {

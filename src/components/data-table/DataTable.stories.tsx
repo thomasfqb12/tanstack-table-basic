@@ -90,7 +90,12 @@ const renderDetail: NonNullable<
 
 type StoryArgs = Pick<
   DataTableProps<typeof features, Project>,
-  'stickyHeader' | 'isLoading' | 'className' | 'aria-label'
+  | 'stickyHeader'
+  | 'isLoading'
+  | 'striped'
+  | 'borders'
+  | 'className'
+  | 'aria-label'
 > & {
   /** Story-only: logged in the Actions panel by the RowClick story. */
   onRowClicked?: (name: string) => void
@@ -101,12 +106,16 @@ const meta = {
   args: {
     stickyHeader: true,
     isLoading: false,
-    className: 'max-h-[420px] rounded border border-gray-200',
+    striped: false,
+    borders: { outer: true, rows: true },
+    className: 'max-h-[420px] rounded',
     'aria-label': 'Projects',
   },
   argTypes: {
     stickyHeader: { control: 'boolean' },
     isLoading: { control: 'boolean' },
+    striped: { control: 'boolean' },
+    borders: { control: 'object' },
     className: { control: 'text' },
   },
 } satisfies Meta<StoryArgs>
@@ -650,6 +659,180 @@ export const RowClick: Story = {
       canvas.getAllByRole('checkbox', { name: 'Select row' })[1],
     )
     await expect(args.onRowClicked).toHaveBeenCalledTimes(1)
+  },
+}
+
+/**
+ * `striped`: off by default. `true` uses the default tint, a CSS color sets
+ * your own (or set the `--dt-stripe-bg` CSS variable). Detail panels don't
+ * shift the pattern, and hover/selected backgrounds win over stripes.
+ */
+export const Striped: Story = {
+  render: (args) => (
+    <div className="flex flex-col gap-6">
+      <StoryTable
+        {...args}
+        aria-label="Default stripes"
+        features={features}
+        columns={columns}
+        data={flatData}
+        tableOptions={{
+          getRowId,
+          getRowCanExpand: (row) => !!row.original.notes,
+        }}
+        renderDetail={renderDetail}
+        striped
+      />
+      <StoryTable
+        {...args}
+        aria-label="Custom stripes"
+        features={features}
+        columns={columns}
+        data={flatData}
+        tableOptions={{ getRowId }}
+        striped="#eff6ff"
+      />
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    const [defaultStripes, custom] = canvas.getAllByRole('table')
+    const bodyRows = (table: HTMLElement) => [
+      ...table.querySelectorAll<HTMLElement>(
+        '[data-slot="body"] [data-slot="row"]',
+      ),
+    ]
+    const bg = (el: HTMLElement) => getComputedStyle(el).backgroundColor
+    const [first, second] = bodyRows(defaultStripes)
+    await expect(bg(first)).toBe('rgba(0, 0, 0, 0)')
+    await expect(bg(second)).toBe('rgba(0, 0, 0, 0.03)')
+    await expect(bg(bodyRows(custom)[1])).toBe('rgb(239, 246, 255)')
+  },
+}
+
+/**
+ * `borders`: row lines by default. `true` draws all, `false` none, and
+ * `{ outer, rows, columns }` switches each one independently: keys you leave
+ * out keep their default. Color: the `--dt-border-color` variable.
+ */
+export const Borders: Story = {
+  render: (args) => (
+    <div className="flex flex-col gap-6">
+      {(
+        [
+          ['Default (rows)', undefined],
+          ['None', false],
+          ['Outer + rows', { outer: true }],
+          ['Columns only', { rows: false, columns: true }],
+          ['All', true],
+        ] as const
+      ).map(([label, borders]) => (
+        <div key={label} className="flex flex-col gap-1">
+          <span className="text-sm font-medium">{label}</span>
+          <StoryTable
+            {...args}
+            className="max-h-48"
+            aria-label={label}
+            features={features}
+            columns={columns}
+            data={flatData.slice(0, 3)}
+            tableOptions={{ getRowId }}
+            borders={borders}
+          />
+        </div>
+      ))}
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    const widths = (name: string) => {
+      const table = canvas.getByRole('table', { name })
+      const row = table.querySelector<HTMLElement>(
+        '[data-slot="body"] [data-slot="row"]',
+      )!
+      const cell = row.querySelector<HTMLElement>('[data-slot="cell"]')!
+      return [
+        getComputedStyle(table).borderTopWidth,
+        getComputedStyle(row).borderBottomWidth,
+        getComputedStyle(cell).borderRightWidth,
+      ]
+    }
+    await expect(widths('Default (rows)')).toEqual(['0px', '1px', '0px'])
+    await expect(widths('None')).toEqual(['0px', '0px', '0px'])
+    await expect(widths('Outer + rows')).toEqual(['1px', '1px', '0px'])
+    await expect(widths('Columns only')).toEqual(['0px', '0px', '1px'])
+    await expect(widths('All')).toEqual(['1px', '1px', '1px'])
+  },
+}
+
+/**
+ * Overrides: `classNames` per part (`row` and `cell` also take a function, for
+ * data- or state-driven classes), and `meta.className` / `meta.headerClassName`
+ * per column. Merged with `cn`, so they replace conflicting defaults.
+ */
+export const CustomStyles: Story = {
+  render: (args) => (
+    <StoryTable
+      {...args}
+      features={features}
+      columns={h.columns([
+        nameColumn,
+        h.accessor('owner', { header: 'Owner', size: 120 }),
+        h.accessor('budget', {
+          header: 'Budget',
+          size: 120,
+          cell: BudgetCell,
+          meta: {
+            grow: false,
+            className: 'justify-end font-mono',
+            headerClassName: 'justify-end',
+          },
+        }),
+      ])}
+      data={flatData}
+      tableOptions={{ getRowId }}
+      classNames={{
+        header: 'bg-slate-800 text-white',
+        headerCell: 'py-3 uppercase tracking-wide text-xs',
+        // A function: from the row's data and state. Returns anything `cn` takes.
+        row: (row, { selected }) => [
+          'data-selected:bg-amber-50',
+          selected
+            ? 'font-semibold'
+            : row.original.status === 'blocked' && 'text-red-700',
+        ],
+        // A function: from the cell's data.
+        cell: (cell) => [
+          'px-5',
+          cell.column.id === 'budget' &&
+            Number(cell.getValue()) > 80_000 &&
+            'text-emerald-700',
+        ],
+      }}
+    />
+  ),
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const cell = canvasElement.querySelector<HTMLElement>(
+      '[data-slot="body"] [data-slot="cell"][data-column-id="owner"]',
+    )!
+    await expect(getComputedStyle(cell).paddingLeft).toBe('20px')
+    const header = canvasElement.querySelector<HTMLElement>(
+      '[data-slot="header"]',
+    )!
+    await expect(getComputedStyle(header).backgroundColor).not.toBe(
+      'rgb(255, 255, 255)',
+    )
+    const [first] = canvas.getAllByRole('checkbox', { name: 'Select row' })
+    await userEvent.click(first)
+    const row = first.closest<HTMLElement>('[role="row"]')!
+    await expect(row).toHaveClass('font-semibold')
+    const rich = flatData.find((project) => project.budget > 80_000)!
+    await expect(
+      canvasElement.querySelector(
+        `[data-row-id="${rich.id}"] [data-column-id="budget"]`,
+      ),
+    ).toHaveClass('text-emerald-700')
+    // `cn` replaced the default selected background instead of adding to it.
+    await expect(row).toHaveClass('data-selected:bg-amber-50')
+    await expect(row).not.toHaveClass('data-selected:bg-blue-50')
   },
 }
 

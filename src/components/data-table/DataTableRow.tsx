@@ -6,6 +6,19 @@ import { RowExpandToggle, RowSelectionCheckbox } from './controls'
 import { hasFeature, useAtomSelector } from './hooks'
 import type { SelectionPlacement } from './layout'
 import { ControlSlot, LeadContent } from './primitives'
+import {
+  CellClassNameContext,
+  ClassNamesContext,
+  RowClassNameContext,
+  withOverrides,
+} from './classNames'
+import {
+  cellClasses,
+  detailClasses,
+  detailRowClasses,
+  rowClasses,
+  selectionCellClasses,
+} from './styles'
 import type { AnyCell, AnyColumn, AnyRow } from './types'
 
 /** Clicks on these never trigger `onRowClick`. */
@@ -41,6 +54,8 @@ export const DataTableRow = memo(function DataTableRow({
   const { tableId, hasDetail, hasRowClick, onRowClickRef } =
     useDataTableContext()
   const { table } = row
+  const slots = useContext(ClassNamesContext)
+  const rowClassName = useContext(RowClassNameContext)
 
   const selected = useAtomSelector(
     table.atoms.rowSelection,
@@ -82,14 +97,19 @@ export const DataTableRow = memo(function DataTableRow({
         onClick={onClick}
         onKeyDown={onKeyDown}
         style={{ '--dt-depth': row.depth } as CSSProperties}
-        className="grid grid-cols-(--dt-grid) border-b border-gray-200 hover:bg-black/2 data-clickable:cursor-pointer data-selected:bg-blue-50"
+        className={withOverrides(
+          rowClasses,
+          slots.row,
+          // Gets the row's state, so classes based on it are never stale.
+          rowClassName?.(row, { selected, expanded }),
+        )}
       >
         {selection === 'column' && (
           <div
             role="cell"
             data-slot="cell"
             data-column-id="__selection"
-            className="flex items-center px-3 py-2"
+            className={withOverrides(selectionCellClasses, slots.cell)}
           >
             <RowSelectionCheckbox row={row} />
           </div>
@@ -135,13 +155,21 @@ function DataTableCell({
   toggle: boolean
   checkbox: boolean
 }) {
+  const slots = useContext(ClassNamesContext)
+  const cellClassName = useContext(CellClassNameContext)
   return (
     <div
       role="cell"
       data-slot="cell"
       data-column-id={cell.column.id}
       data-lead={isLead || undefined}
-      className="flex min-w-0 items-center px-3 py-2 text-sm"
+      // From general to specific: all cells, this column, this cell.
+      className={withOverrides(
+        cellClasses,
+        slots.cell,
+        cell.column.columnDef.meta?.className,
+        cellClassName?.(cell),
+      )}
     >
       {isLead ? (
         // Controls and content indent together. Each control subscribes to
@@ -176,6 +204,7 @@ function DataTableDetail({
   span: number
 }) {
   const renderDetail = useContext(RenderDetailContext)
+  const slots = useContext(ClassNamesContext)
   const content = renderDetail?.(row)
   if (content == null) return null
   return (
@@ -184,9 +213,13 @@ function DataTableDetail({
       id={id}
       data-slot="detail"
       data-row-id={row.id}
-      className="border-b border-gray-200"
+      className={detailRowClasses}
     >
-      <div role="cell" aria-colspan={span} className="p-3">
+      <div
+        role="cell"
+        aria-colspan={span}
+        className={withOverrides(detailClasses, slots.detail)}
+      >
         {content}
       </div>
     </div>

@@ -13,6 +13,10 @@ loading states. Everything else, including every cell, is yours.
   interaction tests.
 - **Why it's built this way**: [ADR 0001](../../../docs/adr/0001-datatable.md).
 - **Full demo**: `src/demo/ProjectsTable.tsx` (`pnpm dev`).
+- **Not built yet** (search states, column pinning, keyboard navigation,
+  filters, pagination...): see
+  [Deferred features](../../../docs/adr/0001-datatable.md#deferred-features)
+  for what already works and how to add the rest.
 
 **Configuring a table** happens in three places:
 
@@ -100,18 +104,22 @@ function PeopleTable({ data }: { data: Array<Person> }) {
 
 ## Props
 
-| Prop                  | Default      | Notes                                                                   |
-| --------------------- | ------------ | ----------------------------------------------------------------------- |
-| `table`               | required     | Instance from `useTable`.                                               |
-| `renderDetail`        | —            | Panel under an expanded row. Return `null` for rows without one.        |
-| `selectionPlacement`  | `'lead'`     | `'lead'`: checkbox in the lead cell. `'column'`: own first column.      |
-| `selectAllScope`      | `'all'`      | What the header checkbox toggles: `'all'` rows or the current `'page'`. |
-| `onRowClick`          | —            | Makes rows clickable and focusable (Enter). Ignores clicks on controls. |
-| `stickyHeader`        | `true`       | The table is its own scroll container: give it a height.                |
-| `isLoading`           | `false`      | Shows `loadingState` instead of rows and sets `aria-busy`.              |
-| `loadingState`        | `Loading…`   | Any node.                                                               |
-| `emptyState`          | `No results` | Any node.                                                               |
-| `className`, `aria-*` | —            | Applied to the root.                                                    |
+| Prop                 | Default      | Notes                                                                                                                        |
+| -------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `table`              | required     | Instance from `useTable`.                                                                                                    |
+| `renderDetail`       | —            | Panel under an expanded row. Return `null` for rows without one.                                                             |
+| `selectionPlacement` | `'lead'`     | `'lead'`: checkbox in the lead cell. `'column'`: own first column.                                                           |
+| `selectAllScope`     | `'all'`      | What the header checkbox toggles: `'all'` rows or the current `'page'`.                                                      |
+| `onRowClick`         | —            | Makes rows clickable and focusable (Enter). Ignores clicks on controls.                                                      |
+| `stickyHeader`       | `true`       | The table is its own scroll container: give it a height.                                                                     |
+| `isLoading`          | `false`      | Shows `loadingState` instead of rows and sets `aria-busy`.                                                                   |
+| `loadingState`       | `Loading…`   | Any node.                                                                                                                    |
+| `emptyState`         | `No results` | Any node.                                                                                                                    |
+| `borders`            | rows only    | `true` (all), `false` (none), or switch each with `{ outer, rows, columns }`; omitted keys keep their default.               |
+| `striped`            | `false`      | `true`: default tint. A CSS color (`'#f8fafc'`): your own.                                                                   |
+| `className`          | —            | Classes for the root (scroll container).                                                                                     |
+| `classNames`         | —            | Classes per part: `{ root, header, headerRow, headerCell, body, row, cell, detail }`. `row` and `cell` also take a function. |
+| `aria-*`             | —            | Applied to the root.                                                                                                         |
 
 ## Table options DataTable reacts to
 
@@ -141,12 +149,15 @@ DataTable props. DataTable follows these options:
 | `minSize`, `maxSize`       | Resize limits.                                                                          |
 | `meta.grow`                | Share of leftover width (`1` by default). `false`: always `size` px.                    |
 | `meta.lead`                | `true` puts the lead cell (toggle → checkbox → content) in this column, not the first.  |
+| `meta.className`           | Classes for this column's cells (e.g. `justify-end tabular-nums`).                      |
+| `meta.headerClassName`     | Classes for this column's header cell.                                                  |
 | `enableSorting`            | `false`: no sort button on this header.                                                 |
 | `enableResizing`           | `false`: no resize handle on this header.                                               |
 | `header`, `cell`, `footer` | Yours. Cells receive TanStack's cell context. See "A custom cell that reacts to state". |
 
 If your features declare their own `columnMeta` slot, include
-`DataTableColumnMeta` in it so `grow` and `lead` stay typed.
+`DataTableColumnMeta` in it so `grow`, `lead`, `className` and
+`headerClassName` stay typed.
 
 ## Features
 
@@ -421,11 +432,82 @@ follows the visible columns:
 </table.Subscribe>
 ```
 
-### Styling with data attributes
+### Stripes and borders
+
+```tsx
+<DataTable table={table} striped />                    // default tint
+<DataTable table={table} striped="var(--ds-surface-2)" />  // your color
+
+<DataTable table={table} borders={false} />            // no lines
+<DataTable table={table} borders />                    // frame + rows + columns
+
+// Each border on or off independently; omitted keys keep their default
+// (rows on, outer and columns off).
+<DataTable table={table} borders={{ columns: true }} />                // rows + columns
+<DataTable table={table} borders={{ rows: false, columns: true }} />   // columns only
+<DataTable table={table} borders={{ outer: true }} />                  // frame + rows
+```
+
+Stripes count data rows only (detail panels don't shift the pattern), and
+hover and selected backgrounds win over them.
+
+### Custom styles
+
+```tsx
+const columns = columnHelper.columns([
+  columnHelper.accessor('name', { header: 'Name' }),
+  columnHelper.accessor('amount', {
+    header: 'Amount',
+    // One column: right-aligned numbers.
+    meta: { className: 'justify-end tabular-nums', headerClassName: 'justify-end' },
+  }),
+])
+
+<DataTable
+  table={table}
+  // Per part. Merged with `cn`: `px-5` replaces the default `px-3`.
+  classNames={{
+    header: 'bg-slate-800 text-white',
+    headerCell: 'uppercase text-xs',
+    cell: 'px-5',
+    row: 'data-selected:bg-amber-50',
+  }}
+/>
+
+// `row` and `cell` also take a function. It returns anything `cn` accepts.
+// Module scope (or the React Compiler) keeps it stable.
+const classNames: DataTableClassNames<
+  Row<typeof features, Invoice>,
+  Cell<typeof features, Invoice, unknown>
+> = {
+  // Data and state: use the `state` argument, not `row.getIsSelected()`.
+  row: (row, { selected }) => [
+    'data-selected:bg-amber-50',
+    selected ? 'font-semibold' : row.original.overdue && 'text-red-700',
+  ],
+  // Data only: cells don't re-render on selection/expansion.
+  cell: (cell) => [
+    'px-5',
+    cell.column.id === 'amount' && Number(cell.getValue()) < 0 && 'text-red-700',
+  ],
+}
+
+<DataTable table={table} classNames={classNames} />
+```
+
+A cell's classes combine from general to specific: `classNames.cell` (string),
+then the column's `meta.className`, then `classNames.cell` (function).
+
+### Theming with CSS
+
+Without props, from a stylesheet (yours wins over DataTable's Tailwind
+utilities: unlayered CSS beats layered CSS):
 
 ```css
-[data-slot='row'][data-selected] {
-  background: var(--ds-selected-bg);
+[data-slot='data-table'] {
+  --dt-border-color: var(--ds-border);
+  --dt-stripe-bg: var(--ds-surface-2);
+  --dt-indent: 1.5rem; /* tree indent per level */
 }
 [data-slot='row'][data-depth='0'] {
   font-weight: 500;
@@ -433,9 +515,6 @@ follows the visible columns:
 [data-slot='header-cell'][data-sorted] {
   color: var(--ds-accent);
 }
-[data-slot='data-table'] {
-  --dt-indent: 1.5rem;
-} /* tree indent per level */
 ```
 
 ## Performance
@@ -465,6 +544,10 @@ To keep it that way:
   `renderDetail` output is memoized per row the same way.
 - Inline `onRowClick` is fine (read from a ref in the event handler). A new
   `renderDetail` function re-renders the open detail panels only.
+- `classNames`: a new object with the same strings changes nothing. A new
+  `row` or `cell` function re-renders the rows or cells that call it (not
+  your cell components), so define it at module scope or let the compiler
+  keep it stable.
 
 ### React Compiler
 
@@ -491,13 +574,33 @@ When writing code that touches the table under the compiler:
 
 From `#/components/data-table`:
 
-| Export                                      | Use                                                                                  |
-| ------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `DataTable`, `DataTableProps`               | The component.                                                                       |
-| `RowExpandToggle`, `RowSelectionCheckbox`   | The lead cell controls, for custom placement (each subscribes to its own row state). |
-| `SelectAllCheckbox`, `SelectAllScope`       | The header checkbox, e.g. in a toolbar.                                              |
-| `useAtomSelector`, `useTableSelector`       | Subscribe a component to one state slice, or to a value derived from the table.      |
-| `DataTableColumnMeta`, `SelectionPlacement` | Types.                                                                               |
+| Export                                                                                                                                                          | Use                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `DataTable`, `DataTableProps`                                                                                                                                   | The component.                                                                       |
+| `RowExpandToggle`, `RowSelectionCheckbox`                                                                                                                       | The lead cell controls, for custom placement (each subscribes to its own row state). |
+| `SelectAllCheckbox`, `SelectAllScope`                                                                                                                           | The header checkbox, e.g. in a toolbar.                                              |
+| `useAtomSelector`, `useTableSelector`                                                                                                                           | Subscribe a component to one state slice, or to a value derived from the table.      |
+| `DataTableColumnMeta`, `SelectionPlacement`, `DataTableBorders`, `DataTableClassNames`, `RowClassName`, `CellClassName`, `RowClassNameState`, `ClassNameResult` | Types.                                                                               |
+
+## Testing
+
+```bash
+pnpm test              # everything
+pnpm test:unit         # logic + React Testing Library, in jsdom (fast)
+pnpm test:storybook    # every story + its play function, in Chromium
+pnpm test:watch        # unit tests in watch mode
+```
+
+| Layer     | Files                                 | Covers                                                                                                                                  |
+| --------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Logic     | `selection.test.ts`, `layout.test.ts` | Cascade parent sync (all modes), select-all rows, grid tracks, lead layout                                                              |
+| Behaviour | `DataTable.test.tsx` (RTL)            | Re-render isolation (spy cells), values that go stale under the React Compiler, selection end to end, controlled state, class overrides |
+| Stories   | `DataTable.stories.tsx` (`play`)      | Each feature in a real browser, including computed layout (borders, stripes, padding)                                                   |
+
+Tests run compiled with the React Compiler (`vitest.config.ts`), like the
+consuming project, so compiler-only bugs show up. When adding a feature:
+add a story (and a `play` function), and a `DataTable.test.tsx` case if it
+has a performance or staleness guarantee.
 
 ## Troubleshooting
 
@@ -511,6 +614,14 @@ createExpandedRowModel()` to `features`.
 - **A custom cell doesn't update when selection/expansion changes**: cells
   only re-render when their row data changes; subscribe with
   `useAtomSelector` (see the example above).
+- **Classes in `classNames` don't apply**: Tailwind only generates classes it
+  finds in scanned files. Classes written in your code are scanned. If
+  DataTable lives outside your app's scanned folders (e.g. a package), add
+  `@source "<path to data-table>";` to your Tailwind CSS entry.
+- **An override doesn't replace a default**: `cn` only replaces a default
+  with the same variant. `row: 'bg-amber-50'` doesn't replace the selected
+  background `data-selected:bg-blue-50`; use the same variant:
+  `row: 'data-selected:bg-amber-50'`.
 - **Every row re-renders on each interaction**: pass a selector to `useTable`
   (`() => ({})`), and define `features`/`columns` at module scope or let the
   compiler cache them.
@@ -519,7 +630,20 @@ createExpandedRowModel()` to `features`.
 
 ## Styling and design system
 
-Styling is minimal Tailwind, plus `data-*` hooks for your design system:
+Styling is minimal Tailwind. From least to most control:
+
+1. **Props**: `striped`, `borders`.
+2. **CSS variables**: `--dt-border-color`, `--dt-stripe-bg`, `--dt-indent`.
+3. **Classes**: `className` / `classNames` slots (`row` and `cell` also as
+   functions), and column `meta.className` / `meta.headerClassName`. They're merged over the defaults
+   with `cn` (the `cn` package), so conflicting defaults are replaced.
+   Without overrides, no merge runs.
+4. **Global CSS** on the `data-*` hooks (below).
+5. **Swap the defaults**: the checkbox, icon button, icons and empty/loading
+   states live in `primitives.tsx`, and the default classes per part in
+   `styles.ts`. Replace them with design system components and classes.
+
+`data-*` hooks:
 
 - `data-slot`: `data-table`, `header`, `header-cell`, `resize-handle`,
   `body`, `row`, `cell`, `detail`, `state`
@@ -529,10 +653,6 @@ Styling is minimal Tailwind, plus `data-*` hooks for your design system:
   `data-column-id`. Both get `data-lead` in the lead column. In
   `selectionPlacement="column"` mode the checkbox column has
   `data-column-id="__selection"`
-
-The checkbox, icon button, icons and empty/loading defaults live in
-`src/components/data-table/primitives.tsx`: swap those for design system
-components without touching the rest.
 
 ## Accessibility
 

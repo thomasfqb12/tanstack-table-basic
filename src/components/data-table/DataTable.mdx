@@ -98,6 +98,20 @@ function Projects({ data }: { data: Array<Project> }) {
       <td>column <code>size</code> + <code>{'meta: { grow }'}</code></td>
     </tr>
     <tr>
+      <td>Stripes, borders</td>
+      <td>
+        DataTable props <code>striped</code>, <code>borders</code>
+      </td>
+    </tr>
+    <tr>
+      <td>Classes per part, per row, per column</td>
+      <td>
+        <code>classNames</code> (<code>row</code>, <code>cell</code> also as
+        functions), column{' '}
+        <code>{'meta: { className, headerClassName }'}</code>
+      </td>
+    </tr>
+    <tr>
       <td>Detail panel, row click, empty/loading states</td>
       <td>DataTable props <code>renderDetail</code>, <code>onRowClick</code>, <code>emptyState</code>, <code>loadingState</code>, <code>isLoading</code></td>
     </tr>
@@ -210,6 +224,27 @@ header edge to resize, and double-click the handle to restore it.
 buttons and inputs inside a row are ignored. Check the Actions panel.
 
 <Canvas of={DataTableStories.RowClick} />
+
+## Styling
+
+Stripes are off by default. `striped` uses the default tint, and a CSS color
+sets your own (or use the `--dt-stripe-bg` CSS variable):
+
+<Canvas of={DataTableStories.Striped} />
+
+`borders` draws row lines by default. `true` draws all, `false` none, and
+`{ outer, rows, columns }` switches each one independently: keys you leave out
+keep their default, so `{ columns: true }` adds column lines and keeps row
+lines. The color comes from `--dt-border-color`:
+
+<Canvas of={DataTableStories.Borders} />
+
+Classes per part (`classNames`), per column (`meta.className`,
+`meta.headerClassName`), and per row or cell (`classNames.row` as
+`(row, { selected, expanded }) => ...`, `classNames.cell` as `(cell) => ...`)
+are merged over the defaults with `cn`, so `px-5` replaces the default `px-3`:
+
+<Canvas of={DataTableStories.CustomStyles} />
 
 ## Empty and loading states
 

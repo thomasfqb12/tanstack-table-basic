@@ -1,3 +1,4 @@
+import { useContext } from 'react'
 import { FlexRender } from '@tanstack/react-table'
 import type { HeaderGroup } from '@tanstack/react-table'
 import type { MouseEvent, TouchEvent } from 'react'
@@ -13,6 +14,14 @@ import {
 import { getLeadLayout } from './layout'
 import type { SelectionPlacement } from './layout'
 import { ControlSlot, LeadContent, SortIcon } from './primitives'
+import { ClassNamesContext, withOverrides } from './classNames'
+import {
+  headerCellClasses,
+  headerClasses,
+  headerRowClasses,
+  selectionCellClasses,
+  stickyHeaderClasses,
+} from './styles'
 import type { AnyHeader, AnyTable } from './types'
 
 export function DataTableHeader({
@@ -26,6 +35,7 @@ export function DataTableHeader({
   selectionPlacement: SelectionPlacement
   selectAllScope: SelectAllScope
 }) {
+  const slots = useContext(ClassNamesContext)
   const { headerGroups, leadColumnId, leadToggle, selection } =
     useTableSelector(table, () => ({
       headerGroups: table.getHeaderGroups(),
@@ -36,7 +46,10 @@ export function DataTableHeader({
     <div
       role="rowgroup"
       data-slot="header"
-      className={`border-b border-gray-200 bg-white ${sticky ? 'sticky top-0 z-10' : ''}`}
+      className={withOverrides(
+        sticky ? stickyHeaderClasses : headerClasses,
+        slots.header,
+      )}
     >
       {headerGroups.map((headerGroup, index) => (
         <HeaderRow
@@ -71,14 +84,18 @@ function HeaderRow({
   selection: SelectionPlacement | null
   selectAllScope: SelectAllScope
 }) {
+  const slots = useContext(ClassNamesContext)
   return (
-    <div role="row" className="grid grid-cols-(--dt-grid)">
+    <div
+      role="row"
+      className={withOverrides(headerRowClasses, slots.headerRow)}
+    >
       {selection === 'column' && (
         <div
           role="columnheader"
           data-slot="header-cell"
           data-column-id="__selection"
-          className="flex items-center px-3 py-2"
+          className={withOverrides(selectionCellClasses, slots.headerCell)}
         >
           {isLeafRow && (
             <SelectAllCheckbox table={table} scope={selectAllScope} />
@@ -120,6 +137,7 @@ function HeaderCell({
   /** Select-all checkbox in the lead header, matching the rows' checkbox. */
   selectAll: SelectAllScope | null
 }) {
+  const slots = useContext(ClassNamesContext)
   const { column, table } = header
   // In a selector: column options can change without the column's identity.
   const { canSort, canResize, sorted } = useTableSelector(table, () => {
@@ -154,7 +172,11 @@ function HeaderCell({
       data-leaf={isLeaf || undefined}
       data-sorted={sorted || undefined}
       data-lead={isLead || undefined}
-      className="relative flex min-w-0 items-center px-3 py-2 text-left text-sm font-medium"
+      className={withOverrides(
+        headerCellClasses,
+        slots.headerCell,
+        column.columnDef.meta?.headerClassName,
+      )}
       style={{ gridColumn: `span ${header.colSpan}` }}
     >
       {isLead ? (

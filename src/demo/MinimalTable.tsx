@@ -24,7 +24,8 @@ export function MinimalTable() {
       table={table}
       aria-label="Minimal"
       stickyHeader={false}
-      className="rounded border border-gray-200"
+      className="rounded"
+      borders
     />
   )
 }
