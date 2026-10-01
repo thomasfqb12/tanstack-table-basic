@@ -1,10 +1,11 @@
-import { memo } from 'react'
+import { memo, useContext } from 'react'
 import { FlexRender } from '@tanstack/react-table'
 import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react'
-import { detailId, useDataTableContext } from './context'
-import { RowExpandToggle } from './controls'
+import { RenderDetailContext, detailId, useDataTableContext } from './context'
+import { RowExpandToggle, RowSelectionCheckbox } from './controls'
 import { hasFeature, useAtomSelector } from './hooks'
-import { getRowCells } from './layout'
+import type { SelectionPlacement } from './layout'
+import { ControlSlot, LeadContent } from './primitives'
 import type { AnyCell, AnyColumn, AnyRow } from './types'
 
 /** Clicks on these never trigger `onRowClick`. */
@@ -13,19 +14,29 @@ const INTERACTIVE_SELECTOR =
 
 /**
  * Re-renders only when its own selected/expanded state changes, or when the
- * visible columns change (`columns` prop). Cells are memoized on `cell`, so
- * toggling a row does not re-render its custom cells.
+ * visible columns change (`columns` prop). The cell list is cached on
+ * `columns`, so toggling a row does not re-render its custom cells.
+ *
+ * Still wrapped in `memo` under the React Compiler: the compiler caches the
+ * body's `rows.map(...)` as a whole, not per item, so a new row order would
+ * otherwise call every row.
  */
 export const DataTableRow = memo(function DataTableRow({
   row,
   columns,
-  expanderId,
+  leadColumnId,
+  leadToggle,
+  selection,
 }: {
   row: AnyRow
   /** Visible leaf columns: a new array re-renders the row (column change). */
   columns: Array<AnyColumn>
-  /** Column hosting the expand toggle, `null` for none. */
-  expanderId: string | null
+  /** Column hosting the lead cell (toggle → checkbox → content). */
+  leadColumnId: string | null
+  /** Lead cells reserve the toggle slot (some row can expand). */
+  leadToggle: boolean
+  /** Where the row checkbox goes; `null` when selection isn't shown. */
+  selection: SelectionPlacement | null
 }) {
   const { tableId, hasDetail, hasRowClick, onRowClickRef } =
     useDataTableContext()
@@ -73,59 +84,89 @@ export const DataTableRow = memo(function DataTableRow({
         style={{ '--dt-depth': row.depth } as CSSProperties}
         className="grid grid-cols-(--dt-grid) border-b border-gray-200 hover:bg-black/2 data-clickable:cursor-pointer data-selected:bg-blue-50"
       >
-        {getRowCells(row).map((cell) => (
-          <DataTableCell
-            key={cell.id}
-            cell={cell}
-            isExpander={cell.column.id === expanderId}
-          />
-        ))}
+        {selection === 'column' && (
+          <div
+            role="cell"
+            data-slot="cell"
+            data-column-id="__selection"
+            className="flex items-center px-3 py-2"
+          >
+            <RowSelectionCheckbox row={row} />
+          </div>
+        )}
+        {cellsFor(row, columns).map((cell) => {
+          const isLead = cell.column.id === leadColumnId
+          return (
+            <DataTableCell
+              key={cell.id}
+              cell={cell}
+              isLead={isLead}
+              toggle={isLead && leadToggle}
+              checkbox={isLead && selection === 'lead'}
+            />
+          )
+        })}
       </div>
       {hasDetail && expanded && (
         <DataTableDetail
           row={row}
           id={detailId(tableId, row.id)}
-          span={columns.length}
+          span={columns.length + (selection === 'column' ? 1 : 0)}
         />
       )}
     </>
   )
 })
 
-const DataTableCell = memo(function DataTableCell({
+/** Derived from `columns` so a visibility/order change refreshes the cells. */
+function cellsFor(row: AnyRow, columns: Array<AnyColumn>): Array<AnyCell> {
+  const byId = row.getAllCellsByColumnId()
+  return columns.map((column) => byId[column.id])
+}
+
+function DataTableCell({
   cell,
-  isExpander,
+  isLead,
+  toggle,
+  checkbox,
 }: {
   cell: AnyCell
-  isExpander: boolean
+  isLead: boolean
+  toggle: boolean
+  checkbox: boolean
 }) {
   return (
     <div
       role="cell"
       data-slot="cell"
       data-column-id={cell.column.id}
-      data-expander={isExpander || undefined}
+      data-lead={isLead || undefined}
       className="flex min-w-0 items-center px-3 py-2 text-sm"
     >
-      {isExpander ? (
-        // Toggle and content indent together; the toggle subscribes to the
-        // expanded state itself, so expanding doesn't re-render the cell.
-        <div className="flex min-w-0 flex-1 items-center gap-1 ps-[calc(var(--dt-depth)*var(--dt-indent,1.25rem))]">
-          <RowExpandToggle row={cell.row} />
+      {isLead ? (
+        // Controls and content indent together. Each control subscribes to
+        // its own state, so toggling doesn't re-render the cell.
+        <LeadContent indent>
+          {toggle && <RowExpandToggle row={cell.row} />}
+          {checkbox && (
+            <ControlSlot>
+              <RowSelectionCheckbox row={cell.row} />
+            </ControlSlot>
+          )}
           <FlexRender cell={cell} />
-        </div>
+        </LeadContent>
       ) : (
         <FlexRender cell={cell} />
       )}
     </div>
   )
-})
+}
 
 /**
  * Full-width panel under an expanded row. Rendered only while expanded;
  * return `null` from `renderDetail` for rows without a panel.
  */
-const DataTableDetail = memo(function DataTableDetail({
+function DataTableDetail({
   row,
   id,
   span,
@@ -134,8 +175,8 @@ const DataTableDetail = memo(function DataTableDetail({
   id: string
   span: number
 }) {
-  const { renderDetailRef } = useDataTableContext()
-  const content = renderDetailRef.current?.(row)
+  const renderDetail = useContext(RenderDetailContext)
+  const content = renderDetail?.(row)
   if (content == null) return null
   return (
     <div
@@ -150,4 +191,4 @@ const DataTableDetail = memo(function DataTableDetail({
       </div>
     </div>
   )
-})
+}

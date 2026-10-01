@@ -1,8 +1,8 @@
-import { memo } from 'react'
 import type { ReactNode } from 'react'
 import { DataTableRow } from './DataTableRow'
 import { useTableSelector } from './hooks'
-import { getExpanderColumnId, getLeafColumns } from './layout'
+import { getLeadLayout, getLeafColumns } from './layout'
+import type { SelectionPlacement } from './layout'
 import type { AnyTable } from './types'
 
 /**
@@ -10,22 +10,25 @@ import type { AnyTable } from './types'
  * pagination...) or the visible columns change. Selection and resizing
  * changes do not reach it.
  */
-export const DataTableBody = memo(function DataTableBody({
+export function DataTableBody({
   table,
+  selectionPlacement,
   isLoading,
   loadingState,
   emptyState,
 }: {
   table: AnyTable
+  selectionPlacement: SelectionPlacement
   isLoading: boolean
   loadingState: ReactNode
   emptyState: ReactNode
 }) {
-  const { rows, columns, expanderId } = useTableSelector(table, () => ({
-    rows: table.getRowModel().rows,
-    columns: getLeafColumns(table),
-    expanderId: getExpanderColumnId(table),
-  }))
+  const { rows, columns, leadColumnId, leadToggle, selection } =
+    useTableSelector(table, () => ({
+      rows: table.getRowModel().rows,
+      columns: getLeafColumns(table),
+      ...getLeadLayout(table, selectionPlacement),
+    }))
 
   let content: ReactNode
   if (isLoading) content = <StateRow>{loadingState}</StateRow>
@@ -36,7 +39,9 @@ export const DataTableBody = memo(function DataTableBody({
         key={row.id}
         row={row}
         columns={columns}
-        expanderId={expanderId}
+        leadColumnId={leadColumnId}
+        leadToggle={leadToggle}
+        selection={selection}
       />
     ))
 
@@ -45,7 +50,7 @@ export const DataTableBody = memo(function DataTableBody({
       {content}
     </div>
   )
-})
+}
 
 function StateRow({ children }: { children: ReactNode }) {
   return (

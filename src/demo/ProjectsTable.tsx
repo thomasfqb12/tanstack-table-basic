@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   columnResizingFeature,
   columnSizingFeature,
+  createColumnHelper,
   createExpandedRowModel,
   createSortedRowModel,
   rowExpandingFeature,
@@ -15,7 +16,7 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import type { Row } from '@tanstack/react-table'
-import { DataTable, createDataTableColumnHelper } from '#/components/data-table'
+import { DataTable } from '#/components/data-table'
 import {
   BudgetCell,
   DateCell,
@@ -43,11 +44,10 @@ export const features = tableFeatures({
   },
 })
 
-const columnHelper = createDataTableColumnHelper<typeof features, Project>()
+const columnHelper = createColumnHelper<typeof features, Project>()
 
 // Static column defs keep header/row memoization effective.
 const columns = columnHelper.columns([
-  columnHelper.selection(),
   columnHelper.accessor('name', { header: 'Name', size: 220, cell: NameCell }),
   columnHelper.accessor('owner', { header: 'Owner', size: 120 }),
   columnHelper.accessor('status', {
@@ -75,6 +75,7 @@ export function ProjectsTable() {
   const [isLoading, setIsLoading] = useState(false)
   const [data, setData] = useState(projects)
   const [lastClicked, setLastClicked] = useState<string>()
+  const [cascadeSelection, setCascadeSelection] = useState(true)
 
   const table = useTable(
     {
@@ -87,6 +88,9 @@ export function ProjectsTable() {
       getRowCanExpand: (row) => row.subRows.length > 0 || !!row.original.notes,
       columnResizeMode: 'onChange',
       enableMultiSort: false,
+      // true: selecting a parent selects its children (default).
+      // false: each row is selected on its own. Also accepts (row) => boolean.
+      enableSubRowSelection: cascadeSelection,
     },
     // Subscribe this component to nothing: DataTable subscribes to what it
     // needs, so selecting/sorting/resizing never re-renders ProjectsTable.
@@ -122,6 +126,17 @@ export function ProjectsTable() {
         >
           Reset widths
         </button>
+        <label className="flex items-center gap-1">
+          <input
+            type="checkbox"
+            checked={cascadeSelection}
+            onChange={(event) => {
+              setCascadeSelection(event.target.checked)
+              table.resetRowSelection()
+            }}
+          />
+          Select children with parent
+        </label>
         {lastClicked && (
           <span className="opacity-60">Clicked: {lastClicked}</span>
         )}

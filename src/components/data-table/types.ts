@@ -27,16 +27,10 @@ export interface DataTableColumnMeta {
    */
   grow?: number | false
   /**
-   * Hosts the expand toggle and depth indentation (requires
-   * `rowExpandingFeature`). By default it's the first visible column that is
-   * not a utility column. `true` picks this column instead.
+   * Hosts the lead cell: expand toggle → checkbox → content, indented by row
+   * depth. Defaults to the first visible column; `true` picks this one.
    */
-  expander?: boolean
-  /**
-   * Marks a DataTable utility column (e.g. selection). Never picked as the
-   * default expander column.
-   */
-  utility?: boolean
+  lead?: boolean
 }
 
 declare module '@tanstack/react-table' {

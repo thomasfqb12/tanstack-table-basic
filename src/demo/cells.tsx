@@ -4,9 +4,9 @@
  */
 import type { CellContext } from '@tanstack/react-table'
 import type { Project, Status } from './data'
-import type { features } from './ProjectsTable'
 
-type Ctx<TValue> = CellContext<typeof features, Project, TValue>
+// Feature-agnostic so the same cells work in any table over `Project`.
+type Ctx<TValue> = CellContext<any, Project, TValue>
 
 const statusStyles: Record<Status, string> = {
   todo: 'bg-gray-100',

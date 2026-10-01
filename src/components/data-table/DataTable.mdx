@@ -1,0 +1,229 @@
+import { Canvas, Controls, Meta } from '@storybook/addon-docs/blocks'
+import * as DataTableStories from './DataTable.stories'
+
+<Meta of={DataTableStories} />
+
+# DataTable
+
+A div-based (CSS grid) table for TanStack Table v9. **You own the table**:
+create it with `useTable`, choose its features, and define its columns and
+cells. DataTable renders the layout, header, rows and states.
+
+```tsx
+const features = tableFeatures({
+  rowSelectionFeature,
+  rowExpandingFeature,
+  rowSortingFeature,
+  columnSizingFeature,
+  columnResizingFeature,
+  sortedRowModel: createSortedRowModel(),
+  expandedRowModel: createExpandedRowModel(),
+  sortFns: {
+    alphanumeric: sortFn_alphanumeric,
+    basic: sortFn_basic,
+    datetime: sortFn_datetime,
+    text: sortFn_text,
+  },
+})
+
+// Only your data columns: DataTable adds the toggle and checkbox itself.
+const columnHelper = createColumnHelper<typeof features, Project>()
+const columns = columnHelper.columns([
+  columnHelper.accessor('name', { header: 'Name', size: 220, cell: NameCell }),
+  columnHelper.accessor('budget', {
+    header: 'Budget',
+    cell: BudgetCell,
+    meta: { grow: false },
+  }),
+])
+
+function Projects({ data }: { data: Array<Project> }) {
+  const table = useTable(
+    {
+      features,
+      columns,
+      data,
+      getRowId: (r) => r.id,
+      getSubRows: (r) => r.children,
+    },
+    () => ({}), // subscribe to nothing: DataTable subscribes to what it needs
+  )
+  return <DataTable table={table} renderDetail={(row) => <Notes row={row} />} />
+}
+```
+
+<Canvas of={DataTableStories.Playground} />
+<Controls of={DataTableStories.Playground} />
+
+## Where to configure what
+
+<table>
+  <thead>
+    <tr>
+      <th>What</th>
+      <th>Where</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Which features exist (sorting, selection, expanding, sizing)</td>
+      <td><code>useTable({'{ features }'})</code></td>
+    </tr>
+    <tr>
+      <td>Tree rows / detail panels</td>
+      <td><code>getSubRows</code> + <code>expandedRowModel</code> / <code>getRowCanExpand</code> + <code>renderDetail</code></td>
+    </tr>
+    <tr>
+      <td>Checkboxes off / some rows disabled</td>
+      <td><code>enableRowSelection: false</code> / <code>(row) => boolean</code></td>
+    </tr>
+    <tr>
+      <td>Single selection</td>
+      <td><code>enableMultiRowSelection: false</code></td>
+    </tr>
+    <tr>
+      <td>Parent selects its children, or not</td>
+      <td><code>enableSubRowSelection: true</code> (default) / <code>false</code> / <code>(row) => boolean</code></td>
+    </tr>
+    <tr>
+      <td>Checkbox in the lead cell or in its own column</td>
+      <td><code>{'<DataTable selectionPlacement="lead" | "column" />'}</code></td>
+    </tr>
+    <tr>
+      <td>Which column holds toggle + checkbox</td>
+      <td>column <code>{'meta: { lead: true }'}</code></td>
+    </tr>
+    <tr>
+      <td>Column widths</td>
+      <td>column <code>size</code> + <code>{'meta: { grow }'}</code></td>
+    </tr>
+    <tr>
+      <td>Detail panel, row click, empty/loading states</td>
+      <td>DataTable props <code>renderDetail</code>, <code>onRowClick</code>, <code>emptyState</code>, <code>loadingState</code>, <code>isLoading</code></td>
+    </tr>
+  </tbody>
+</table>
+
+The full reference is in `src/components/data-table/README.md`.
+
+## Features are opt-in
+
+DataTable only renders UI for the features registered on the table. With
+`tableFeatures({})` you get a plain, fluid table.
+
+<Canvas of={DataTableStories.Minimal} />
+
+## Sorting
+
+Click a sortable header to cycle asc → desc → none. Sorting is always
+single-column. Use `enableSorting: false` on a column to opt it out (Budget
+here), and `manualSorting` + `onSortingChange` for server-side sorting.
+
+<Canvas of={DataTableStories.Sorting} />
+
+## The lead cell
+
+The first column's cell renders **toggle → checkbox → your content**, indented
+together by row depth. The header matches it (empty toggle slot → select-all →
+label), so everything lines up. Slots appear only when needed: no toggle slot
+if no row can expand, no checkbox if selection is off.
+
+## Row selection
+
+Registering `rowSelectionFeature` shows checkboxes in the lead cell. Read the
+selection outside the table with `table.Subscribe`, so the parent component
+doesn't re-render.
+
+<Canvas of={DataTableStories.RowSelection} />
+
+Single selection is a table option: `enableMultiRowSelection: false`.
+
+<Canvas of={DataTableStories.SingleRowSelection} />
+
+### Cascade or independent
+
+TanStack's `enableSubRowSelection` picks how parents and children relate, per
+table or per row (`(row) => boolean`). By default (`true`), selecting a parent
+selects its children, and a parent is selected exactly when all its children
+are. Uncheck a child to see its ancestors turn partial:
+
+<Canvas of={DataTableStories.CascadeSelection} />
+
+With `false`, every row is selected on its own. The header checkbox still
+selects rows at every depth:
+
+<Canvas of={DataTableStories.IndependentSelection} />
+
+### Placement
+
+`selectionPlacement="column"` puts checkboxes in a fixed first column, aligned
+at every depth, while the toggle stays in the lead cell:
+
+<Canvas of={DataTableStories.SelectionColumn} />
+
+`enableRowSelection: false` hides the checkboxes. A function disables some rows
+(here, `done` rows), keeping their checkbox so rows stay aligned:
+
+<Canvas of={DataTableStories.SelectionDisabled} />
+
+## Nested rows
+
+Add `getSubRows` and `expandedRowModel`. The toggle goes in the lead cell.
+
+<Canvas of={DataTableStories.TreeRows} />
+
+`meta: { lead: true }` moves the lead cell to another column:
+
+<Canvas of={DataTableStories.CustomLeadColumn} />
+
+## Detail panel
+
+`renderDetail` renders a full-width panel under expanded rows. Set
+`getRowCanExpand` for rows without sub-rows, and return `null` for rows without
+a panel.
+
+<Canvas of={DataTableStories.DetailPanel} />
+
+Combined with tree rows, the panel comes first, then the children:
+
+<Canvas of={DataTableStories.TreeWithDetail} />
+
+## Column widths and resizing
+
+Every column is a `minmax(size, grow fr)` grid track: `size` is the minimum
+width, and `meta.grow` shares the leftover space (`false` = fixed). Drag a
+header edge to resize, and double-click the handle to restore it.
+
+<Canvas of={DataTableStories.FluidAndResizableColumns} />
+
+## Grouped headers
+
+<Canvas of={DataTableStories.GroupedHeaders} />
+
+## Column visibility
+
+<Canvas of={DataTableStories.ColumnVisibility} />
+
+## Row click
+
+`onRowClick` makes rows clickable and focusable (Enter). Clicks on links,
+buttons and inputs inside a row are ignored. Check the Actions panel.
+
+<Canvas of={DataTableStories.RowClick} />
+
+## Empty and loading states
+
+<Canvas of={DataTableStories.Empty} />
+<Canvas of={DataTableStories.Loading} />
+<Canvas of={DataTableStories.CustomStates} />
+
+## Performance rules for consumers
+
+- Pass a selector to `useTable` (`() => ({})`). Read state lower down with
+  `table.Subscribe` or `useAtomSelector`.
+- Keep `features` and `columns` stable (module scope or the React Compiler).
+- Cells re-render only when their row data changes: a cell that shows table
+  state must subscribe to it (`useAtomSelector`).
+
+See `src/components/data-table/README.md` for the full guide, and
+`docs/adr/0001-datatable.md` for the design decisions.

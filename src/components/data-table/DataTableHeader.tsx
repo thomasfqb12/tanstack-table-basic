@@ -1,29 +1,36 @@
-import { memo } from 'react'
 import { FlexRender } from '@tanstack/react-table'
 import type { HeaderGroup } from '@tanstack/react-table'
 import type { MouseEvent, TouchEvent } from 'react'
 import { useDataTableContext } from './context'
+import { SelectAllCheckbox } from './controls'
+import type { SelectAllScope } from './controls'
 import {
   hasFeature,
   readAtom,
   useAtomSelector,
   useTableSelector,
 } from './hooks'
-import { getExpanderColumnId } from './layout'
-import { SortIcon } from './primitives'
+import { getLeadLayout } from './layout'
+import type { SelectionPlacement } from './layout'
+import { ControlSlot, LeadContent, SortIcon } from './primitives'
 import type { AnyHeader, AnyTable } from './types'
 
-export const DataTableHeader = memo(function DataTableHeader({
+export function DataTableHeader({
   table,
   sticky,
+  selectionPlacement,
+  selectAllScope,
 }: {
   table: AnyTable
   sticky: boolean
+  selectionPlacement: SelectionPlacement
+  selectAllScope: SelectAllScope
 }) {
-  const { headerGroups, expanderId } = useTableSelector(table, () => ({
-    headerGroups: table.getHeaderGroups(),
-    expanderId: getExpanderColumnId(table),
-  }))
+  const { headerGroups, leadColumnId, leadToggle, selection } =
+    useTableSelector(table, () => ({
+      headerGroups: table.getHeaderGroups(),
+      ...getLeadLayout(table, selectionPlacement),
+    }))
   const lastIndex = headerGroups.length - 1
   return (
     <div
@@ -34,63 +41,101 @@ export const DataTableHeader = memo(function DataTableHeader({
       {headerGroups.map((headerGroup, index) => (
         <HeaderRow
           key={headerGroup.id}
+          table={table}
           headerGroup={headerGroup}
           isLeafRow={index === lastIndex}
-          expanderId={expanderId}
+          leadColumnId={leadColumnId}
+          leadToggle={leadToggle}
+          selection={selection}
+          selectAllScope={selectAllScope}
         />
       ))}
     </div>
   )
-})
+}
 
-const HeaderRow = memo(function HeaderRow({
+function HeaderRow({
+  table,
   headerGroup,
   isLeafRow,
-  expanderId,
+  leadColumnId,
+  leadToggle,
+  selection,
+  selectAllScope,
 }: {
+  table: AnyTable
   headerGroup: HeaderGroup<any, any>
   isLeafRow: boolean
-  expanderId: string | null
+  leadColumnId: string | null
+  leadToggle: boolean
+  selection: SelectionPlacement | null
+  selectAllScope: SelectAllScope
 }) {
   return (
     <div role="row" className="grid grid-cols-(--dt-grid)">
-      {headerGroup.headers.map((header) => (
-        <HeaderCell
-          key={header.id}
-          header={header}
-          isLeaf={isLeafRow}
-          // Only leaf headers line up with the cells' toggle.
-          isExpander={isLeafRow && header.column.id === expanderId}
-        />
-      ))}
+      {selection === 'column' && (
+        <div
+          role="columnheader"
+          data-slot="header-cell"
+          data-column-id="__selection"
+          className="flex items-center px-3 py-2"
+        >
+          {isLeafRow && (
+            <SelectAllCheckbox table={table} scope={selectAllScope} />
+          )}
+        </div>
+      )}
+      {headerGroup.headers.map((header) => {
+        // Only leaf headers line up with the cells' controls.
+        const isLead = isLeafRow && header.column.id === leadColumnId
+        return (
+          <HeaderCell
+            key={header.id}
+            header={header}
+            isLeaf={isLeafRow}
+            isLead={isLead}
+            toggleSlot={isLead && leadToggle}
+            selectAll={isLead && selection === 'lead' ? selectAllScope : null}
+          />
+        )
+      })}
     </div>
   )
-})
+}
 
 type AriaSort = 'ascending' | 'descending' | 'none'
 
-const HeaderCell = memo(function HeaderCell({
+function HeaderCell({
   header,
   isLeaf,
-  isExpander,
+  isLead,
+  toggleSlot,
+  selectAll,
 }: {
   header: AnyHeader
   isLeaf: boolean
-  isExpander: boolean
+  isLead: boolean
+  /** Empty slot matching the rows' expand toggle. */
+  toggleSlot: boolean
+  /** Select-all checkbox in the lead header, matching the rows' checkbox. */
+  selectAll: SelectAllScope | null
 }) {
   const { column, table } = header
-  const canSort =
-    !header.isPlaceholder &&
-    hasFeature(table, 'rowSortingFeature') &&
-    column.getCanSort()
-  const canResize =
-    !header.isPlaceholder &&
-    hasFeature(table, 'columnResizingFeature') &&
-    column.getCanResize()
-
-  const sorted = useAtomSelector(table.atoms.sorting, () =>
-    canSort ? column.getIsSorted() : false,
-  )
+  // In a selector: column options can change without the column's identity.
+  const { canSort, canResize, sorted } = useTableSelector(table, () => {
+    const sortable =
+      !header.isPlaceholder &&
+      hasFeature(table, 'rowSortingFeature') &&
+      column.getCanSort()
+    return {
+      canSort: sortable,
+      canResize:
+        !header.isPlaceholder &&
+        hasFeature(table, 'columnResizingFeature') &&
+        column.getCanResize(),
+      sorted: sortable ? column.getIsSorted() : false,
+    }
+  })
   const ariaSort: AriaSort | undefined = canSort
     ? sorted === 'asc'
       ? 'ascending'
@@ -108,46 +153,73 @@ const HeaderCell = memo(function HeaderCell({
       data-column-id={column.id}
       data-leaf={isLeaf || undefined}
       data-sorted={sorted || undefined}
-      data-expander={isExpander || undefined}
+      data-lead={isLead || undefined}
       className="relative flex min-w-0 items-center px-3 py-2 text-left text-sm font-medium"
       style={{ gridColumn: `span ${header.colSpan}` }}
     >
-      {isExpander && (
-        // Same width as the row toggle (+ gap), so the label aligns with cells.
-        <span aria-hidden className="inline-block w-7 shrink-0" />
-      )}
-      {header.isPlaceholder ? null : canSort ? (
-        <button
-          type="button"
-          className="flex min-w-0 items-center gap-1"
-          // Single-column sorting: always replace, never add (ignores shift).
-          onClick={() => column.toggleSorting(undefined, false)}
-        >
-          <span className="truncate">
-            <FlexRender header={header} />
-          </span>
-          <SortIcon direction={sorted} />
-        </button>
+      {isLead ? (
+        <LeadContent indent={false}>
+          {toggleSlot && <ControlSlot />}
+          {selectAll && (
+            // The slot stays when select-all is hidden (single selection).
+            <ControlSlot>
+              <SelectAllCheckbox table={table} scope={selectAll} />
+            </ControlSlot>
+          )}
+          <HeaderLabel header={header} canSort={canSort} sorted={sorted} />
+        </LeadContent>
       ) : (
-        <FlexRender header={header} />
+        <HeaderLabel header={header} canSort={canSort} sorted={sorted} />
       )}
       {canResize && <ResizeHandle header={header} />}
     </div>
   )
-})
+}
+
+function HeaderLabel({
+  header,
+  canSort,
+  sorted,
+}: {
+  header: AnyHeader
+  canSort: boolean
+  sorted: false | 'asc' | 'desc'
+}) {
+  if (header.isPlaceholder) return null
+  if (!canSort) return <FlexRender header={header} />
+  return (
+    <button
+      type="button"
+      className="flex min-w-0 items-center gap-1"
+      // Single-column sorting: always replace, never add (ignores shift).
+      onClick={() => header.column.toggleSorting(undefined, false)}
+    >
+      <span className="truncate">
+        <FlexRender header={header} />
+      </span>
+      <SortIcon direction={sorted} />
+    </button>
+  )
+}
 
 function ResizeHandle({ header }: { header: AnyHeader }) {
   const { rootRef } = useDataTableContext()
   const { table, column } = header
 
-  // `null` when another column (or none) is being resized.
-  const delta = useAtomSelector(table.atoms.columnResizing, (state) =>
-    state?.isResizingColumn === column.id ? (state.deltaOffset ?? 0) : null,
-  )
-  const isResizing = delta !== null
   // In 'onEnd' mode sizes commit on release, so move the handle as preview.
-  const previewOffset =
-    isResizing && table.options.columnResizeMode === 'onEnd' ? delta : 0
+  const { isResizing, previewOffset } = useAtomSelector(
+    table.atoms.columnResizing,
+    (state) => {
+      const resizing = state?.isResizingColumn === column.id
+      return {
+        isResizing: resizing,
+        previewOffset:
+          resizing && table.options.columnResizeMode === 'onEnd'
+            ? (state.deltaOffset ?? 0)
+            : 0,
+      }
+    },
+  )
 
   const onStart = (event: MouseEvent | TouchEvent) => {
     event.stopPropagation()

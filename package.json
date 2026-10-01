@@ -12,7 +12,10 @@
     "preview": "vite preview",
     "lint": "eslint",
     "format": "prettier --write . && eslint --fix",
-    "check": "prettier --check ."
+    "check": "prettier --check .",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "compiler:report": "node scripts/react-compiler-report.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
@@ -26,12 +29,15 @@
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.6",
+    "@babel/core": "^7.29.7",
     "@rolldown/plugin-babel": "^0.2.4",
+    "@storybook/addon-docs": "^10.6.1",
+    "@storybook/react-vite": "^10.6.1",
     "@tanstack/devtools-vite": "0.8.5",
     "@tanstack/eslint-config": "0.4.0",
     "@tanstack/router-cli": "^1.132.0",
     "@tanstack/router-plugin": "1.168.42",
+    "@types/babel__core": "^7.20.5",
     "@types/node": "^22.10.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -40,6 +46,7 @@
     "eslint": "^9.20.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.8.1",
+    "storybook": "^10.6.1",
     "typescript": "^6.0.2",
     "vite": "^8.0.0"
   },

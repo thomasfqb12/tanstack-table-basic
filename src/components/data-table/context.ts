@@ -13,21 +13,28 @@ export type OnRowClick<TData extends RowData = any> = (
 ) => void
 
 /**
- * Stable per-table context. Callbacks are read through refs so consumers can
- * pass inline functions without breaking row memoization; only the boolean
- * flags change the context value.
+ * Stable per-table context: only the boolean flags change its value.
+ * `onRowClick` goes through a ref (read in event handlers only), so consumers
+ * can pass inline functions without re-rendering every row.
  */
 export interface DataTableContextValue {
   tableId: string
   rootRef: RefObject<HTMLDivElement | null>
   hasDetail: boolean
   hasRowClick: boolean
-  renderDetailRef: RefObject<RenderDetail | undefined>
   onRowClickRef: RefObject<OnRowClick | undefined>
 }
 
 export const DataTableContext = createContext<DataTableContextValue | null>(
   null,
+)
+
+/**
+ * Separate from the main context: only open detail panels consume it, so a
+ * new `renderDetail` function re-renders those panels, not every row.
+ */
+export const RenderDetailContext = createContext<RenderDetail | undefined>(
+  undefined,
 )
 
 export function useDataTableContext(): DataTableContextValue {
